@@ -1,0 +1,114 @@
+
+task npm(type: Exec) {
+    group = "Build"
+    description = "Installs all Node.js dependencies defined in package.json"
+    commandLine = ["npm", "install"]
+    inputs.file "package.json"
+    outputs.dir "node_modules"
+}
+
+task grunt(type: GruntTask) {
+    group = "Build"
+    description = "Runs the default grunt tasks."
+    gruntArgs = "default"
+}
+grunt.dependsOn npm
+
+task installUiDependencies(type: GruntTask) {
+    group = "Build"
+    description = "Installs the UI dependencies."
+    gruntArgs = "installDependencies"
+}
+installUiDependencies.dependsOn npm
+
+task bower(type: Exec) {
+    commandLine = ["./node_modules/bower/bin/bower", "install"]
+    group = "Build"
+    description = "Runs a Bower task"
+}
+
+task build << {
+    println "°°° building"
+}
+
+// runs "grunt build" as part of your gradle build
+build.dependsOn grunt
+
+
+class BowerTask extends Exec {
+    def bowerExec
+    def output = new ByteArrayOutputStream()
+    def outputFile = null
+    def bowerArgs = ""
+
+    public BowerTask() {
+        super();
+        this.bowerExec(bowerExec)
+        // Don't fail immediately after executing, save the output to a file first
+        this.setIgnoreExitValue(true)
+        // Capture output
+        this.setStandardOutput(output)
+        this.setErrorOutput(output)
+    }
+
+    public void setBowerArgs(String gruntArgs) {
+        this.args = "$bowerArgs".trim().split(" ") as List
+        // Construct an output file name with gruntArgs
+        def reportsDir = new File(project.buildDir, "reports")
+        this.outputFile = new File(reportsDir, bowerArgs +".txt")
+        this.outputs.file outputFile
+        // After executing command...
+        this.doLast {
+            // Save output to a file
+            output.close()
+            outputFile.parentFile.mkdirs()
+            outputFile.text = output.toString()
+            // Log errors (if any)
+            def result = getExecResult()
+            if (result.exitValue != 0) {
+                logger.error(output.toString())
+            }
+            // Fail build if Grunt failed
+            result.assertNormalExitValue()
+        }
+    }
+}
+
+class GruntTask extends Exec {
+    def gruntExecutable = System.getProperty("os.name").toLowerCase().contains("windows") ? "grunt.cmd" : "grunt"
+    def output = new ByteArrayOutputStream()
+    def outputFile = null
+    def gruntArgs = ""
+
+    public GruntTask() {
+        super()
+        this.setExecutable(gruntExecutable)
+        // Don't fail immediately after executing, save the output to a file first
+        this.setIgnoreExitValue(true)
+        // Capture output
+        this.setStandardOutput(output)
+        this.setErrorOutput(output)
+    }
+
+    public void setGruntArgs(String gruntArgs) {
+        this.args = "$gruntArgs".trim().split(" ") as List
+        // Construct an output file name with gruntArgs
+        def reportsDir = new File(project.buildDir, "reports")
+        this.outputFile = new File(reportsDir, gruntArgs +".txt")
+        this.outputs.file outputFile
+        // After executing command...
+        this.doLast {
+            // Save output to a file
+            output.close()
+            outputFile.parentFile.mkdirs()
+            outputFile.text = output.toString()
+            // Log errors (if any)
+            def result = getExecResult()
+            if (result.exitValue != 0) {
+                logger.error(output.toString())
+            }
+            // Fail build if Grunt failed
+            result.assertNormalExitValue()
+        }
+    }
+}
